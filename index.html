@@ -1,0 +1,115 @@
+<body bgcolor="#E4D1BA"> 
+<title>Appearance Models Final Project</title>
+<center><h1>Tom Crossland<br>CS6501 Final Project</h1></center>	For my project, I investigated diffuse fluorescent surface properties. Fluorescent surfaces alter the wavelength of light reflected at a molecular level. Because of difficulty acquiring measured fluorescent BRDFs, I used analytic BRDFs to render these effects. My implementation was based a research paper by Wilkie et al [4]. In the paper, the authors use an approximation to model diffuse fluorescent surface BRDFs by dividing the BRDF into two parts: a non-fluorescent semi-glossy component representing the specularity and a perfectly Lambertian component that accounts for the shift in emitted wavelengths [4]. The specular term is a layered microfacet surface with a Blinn distribution. The diffuse component uses a re-radiation matrix that compute shifts in the absorbed spectrum that are characteristic of fluorescence.<br><br>For my implementation, I used the Physically Based Ray Tracer (pbrt) in C++ [2]. I consulted a previous project write-up from Stanford University [1] as a springboard for my project to at least determine the feasibility of implementing in pbrt as well as obtaining reradation matrix data. To model spectral shifts, the ray tracer needed full spectral rendering. This was accomplished through settings within the ray tracer. In addition, spectrums in pbrt were changed to be represented between 300-800 nm with fifty uniform samples as opposed to the original specifications of 400-700 nm with thirty uniform samples. This allowed for sampling spectrum wavelengths outside of the visible spectrum, including UV light. This spectral rendering also allowed for specifying light sources through their spectral power distributions (SPDs). Blacklights, composed primarily of wavelengths in the ultraviolet spectrum, could be specified. SPDs for specific lights were obtained from source [5].<br><br>pbrt allowed for implementation of different material types with unique BRDFs. I created a new class for fluorescent materials which can be found in ./src/materials/fluorescent.cpp/h. When creating the material in the pbrt scene file, I included a parameter for the reradiation matrix. The reradiation matrix describes the wavelength shift in the diffuse part of the material’s reflectance. The matrix has two axes: emission wavelengths and excitation wavelengths. The matrix works in the following manner: the excitation wavelength is absorbed by the material and then readmitted at each emission wavelength with a certain percentage of its total energy of the original wavelength. This percentage is the index of the reradiation matrix at the row position of the excitation wavelength and the column position of the emission wavelength. These total percentages are less than, but not necessarily equal to 100% due to lose of energy due to thermal noise and other factors at a molecular level. The reradiation matrix for a new fluorescent material is specified through a text file input parsed from the scene file (through a “reradiation” flag). The matrix file format is as follows. First line: the number of emission wavelengths to be used for the matrix and the number of excitation wavelengths to be used (separated by spaces); second line: the emission wavelengths to be used in nanometers (separated by spaces); third line: the excitation wavelengths to be used in nanometers (separated by spaces); remaining lines: the percentages (out of 100.0%) for each corresponding excitation and emission wavelengths with each separate line being the percentages for a specific excitation wavelength being absorbed and emitted at each emission wavelength. Actual reradiation data is very difficult to find. Only one reradiation matrix of red fluorescent ink [3] was composed from measured data (./scenes/reradiation/redink.txt) and was found via [1]. The other reradation matrices in the ./scenes/reradiation/ directory were constructed empirically. The BRDFs of the fluorescent material were implemented with a microfacet Blinn distribution where as the diffuse part was perfectly Lambertian with the spectrum emitted being the incoming light source spectrum shifted according to the given reradiation matrix.<br><br>Special handling had to be accounted for when factoring in BRDFs into the rendering equation. The non-spectrum shifted BRDFs (including the fluorescent specular term) for a particular intersection were computed separately from the fluorescent Lambertian BRDF. The fluorescent Lambertian BRDFs need the incoming light spectrum to determine the emitted spectrum from the surface. In the direct light integrator for the ray tracer (./src/core/integrator.cpp/h), the incoming light spectrum is obtained and given to the fluorescent Lambertian BRDF class (./src/core/reflection.cpp/h) . This spectrum is then shifted through an object (./src/core/reradiation.cpp/h) which stores the particular material’s reradiation matrix. The shifted spectrum modulated by a Lambertian constant is plugged into the rendering equation as the BRDF for the diffuse aspect of the fluorescent material.<br><br>A detailed list of images generated and how they were computed can be found in Outputs.pdf. The results were as expected and can be found in the ./results directory. Included are visual representations of the separated specular and diffuse components as specified in [4] for fluorescent materials as well as the combined specular and diffuse terms. Under normal daylight conditions, fluorescent objects appeared in their normal color. Red ink was a reddish hue while the blue fluorescent material with an empirically created reradiation matrix appeared bluish. When the same scenes were rendered under a blacklight (with most of the spectral power density distributed around 375 nm), the fluorescent materials underwent a shift in emitted spectrum. The red ink became more orange with the blue shifted to a cyan. This contrasts with non-fluorescent objects. When fluorescent and non-fluorescent objects were modeled in a scene, both appeared under daylight conditions. However, when the same scene was rendered with a blacklight, the fluorescent object experienced a spectrum shift and was visible whereas the non-fluorescent material had no spectrum shift and was thus not particularly visible. The same principle goes for rendering an object with a diagonal reradiation matrix, or a reradiation matrix that only absorbs and emits energy at the same wavelengths (./scenes/reradiation/Diagonal.txt). Under daylight conditions, this material had a pastel green appearance. Under the blacklight, no shift in spectrum occurred.While the results are promising, the method proposed by Wilkie et al has some downsides. First, this model is used to render diffuse fluorescent effects and is not entirely faithful to the physical understanding of how fluorescence works. In fluorescent materials, some light is struck off the surface with no shift in the spectrum. This corresponds to the diagonal terms of the reradiation matrix. However, some light is transmitted through the material, undergoing subsurface scattering before being emitted at different locations on the surface in equal probability. This model gives it a glowing appearance. Just modeling the shift in spectrum in the diffuse reflectance term makes the material not appear like it is “glowing” and instead looks like the object was painted with a new color. Once the implementation for the Wilkie diffuse fluorescent material was accomplished, I investigated this subsurface approach and tried to implement it. However, I was unable to finish and produce deliverable results of this subsurface integrator by the project deadline.<br><br>In conclusion, my project presented a specialized analytic BRDF model to effectively model diffuse fluorescent surfaces. Let me know if you have any additional questions about the implementation or results of the project.
+<br><br>
+
+<h2>Results</h2>
+<center><h4>BUNNY WITH DIFFUSE COMPONENT</center></h4>
+File: <a href="./results/bunny-diffuse-daylight.exr">./results/bunny-diffuse-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/bunny-diffuse-daylight.exr ./scenes/bunny-redink-daylight.pbrt</code><br><br>
+A rendering of the Stanford bunny with red fluorescent ink under daylight. Only the diffuse component is viewed. Reradiation matrix can be found at ./scenes/reradiation/RedInk.spd   
+<br><hr><br>
+File: <a href="./results/bunny-diffuse-blacklight2.exr">./results/bunny-diffuse-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/bunny-diffuse-blacklight2.exr ./scenes/bunny-redink-blacklight2.pbrt</code><br><br>
+A rendering of the Stanford bunny with red fluorescent ink under the blacklight. Only the diffuse component is viewed. Notice the shift in color and visibility in comparison to the previous image. Reradiation matrix can be found at ./scenes/reradiation/RedInk.spd
+<br><hr><br>
+<center><h4>BUNNY WITH SPECULAR COMPONENT</center></h4>
+File: <a href="./results/bunny-specular-daylight.exr">./results/bunny-specular-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/bunny-specular-daylight.exr ./scenes/bunny-redink-daylight.pbrt</code><br><br>
+A rendering of the Stanford bunny with red fluorescent ink under daylight. Only the specular component is viewed. Reradiation matrix can be found at ./scenes/reradiation/RedInk.spd   
+<br><hr><br>
+File: <a href="./results/bunny-specular-blacklight2.exr">./results/bunny-specular-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/bunny-specular-blacklight2.exr ./scenes/bunny-specular-blacklight2.pbrt  </code><br><br>
+A rendering of the Stanford bunny with red fluorescent ink under the blacklight. Only the specular component is viewed. Notice the shift in color and visibility in comparison to the previous image. Reradiation matrix can be found at ./scenes/reradiation/RedInk.spd
+<br><hr><br>
+<center><h4>
+TEAPOTS UNDER DIFFERENT LIGHTS</center></h4>
+File: <a href="./results/teapot-blacklight2.exr">./results/teapot-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/teapot-blacklight2.exr ./scenes/teapot-blacklight2.pbrt</code><br><br>
+A rendering of the Utah teapot with blue fluorescent ink under a blacklight. SPD can be found at ./test/spds/blacklight2.spd    
+<br><hr><br>
+File: <a href="./results/teapot-blacklight.exr">./results/teapot-blacklight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/teapot-blacklight.exr ./scenes/teapot-blacklight.pbrt</code><br><br>
+A rendering of the Utah teapot with blue fluorescent ink under another blacklight with a different SPD. SPD can be found at ./test/spds/blacklight.spd   
+<br><hr><br>
+File: <a href="./results/teapot-daylight.exr">./results/teapot-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/teapot-daylight.exr ./scenes/teapot-daylight.pbrt</code><br><br>
+A rendering of the Utah teapot with blue fluorescent ink under daylight conditions. SPD can be found at ./test/spds/daylight.spd   
+<br><hr><br>
+File: <a href="./results/teapot-incandescent.exr">./results/teapot-incandescent.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/teapot-incandescent.exr ./scenes/teapot-incandescent.pbrt  </code><br><br>
+A rendering of the Utah teapot with blue fluorescent ink under an incandescent light. SPD can be found at ./scenes/spds/incandescent1.spd   
+<br><hr><br>
+File: <a href="./results/teapot-redglass.exr">./results/teapot-redglass.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/teapot-redglass.exr ./scenes/teapot-redglass.pbrt</code><br><br>
+A rendering of the Utah teapot with blue fluorescent ink under a red glass light. SPD can be found at ./scenes/spds/redglass.spd
+<br><hr><br>
+<center><h4>BUNNY UNDER DAYLIGHT AND BLACKLIGHT2</center></h4>
+File: <a href="./results/bunny-redink-daylight.exr">./results/bunny-redink-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/bunny-redink-daylight.exr ./scenes/bunny-redink-daylight.pbrt</code><br><br>
+A rendering of the Stanford bunny with red fluorescent ink under daylight. Reradiation matrix can be found at ./scenes/reradiation/RedInk.spd    
+<br><hr><br>
+File: <a href="./results/bunny-redink-blacklight2.exr">./results/bunny-redink-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/bunny-redink-blacklight2.exr ./scenes/bunny-redink-blacklight2.pbrt</code><br><br>
+A rendering of the Stanford bunny with red fluorescent ink under the blacklight. Notice the shift in color and visibility in comparison to the previous image. Reradiation matrix can be found at ./scenes/reradiation/RedInk.spd    
+<br><hr><br>
+File: <a href="./results/bunny-redplastic-daylight.exr">./results/bunny-redplastic-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/bunny-redplastic-daylight.exr ./scenes/bunny-redplastic-daylight.pbrt</code><br><br>
+A rendering of the red plastic Stanford bunny under daylight. Reradiation matrix can be found at ./scenes/reradiation/RedInk.spd   
+<br><hr><br>
+File: <a href="./results/bunny-redplastic-blacklight2.exr">./results/bunny-redplastic-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/bunny-redplastic-blacklight2.exr ./scenes/bunny-redplastic-blacklight2.pbrt</code><br><br>
+A rendering of the red plastic Stanford bunny under daylight. Notice the lack of shift in color and visibility in comparison to the previous images. Reradiation matrix can be found at ./scenes/reradiation/RedInk.spd
+<br><hr><br>
+<center><h4>KILLEROO WITH GREEN INK AND DIAGONAL RRM</center></h4> 
+File: <a href="./results/killeroo-greenink-daylight.exr">./results/killeroo-greenink-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/killeroo-greenink-daylight.exr ./scenes/killeroo-greenink-daylight.pbrt</code><br><br>
+A rendering of killeroo with green fluorescent ink under daylight. Reradiation matrix can be found at ./scenes/reradiation/GreenInk.spd    
+<br><hr><br>
+File: <a href="./results/killeroo-greenink-blacklight2.exr">./results/killeroo-greenink-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/killeroo-greenink-blacklight2.exr ./scenes/killeroo-greenink-blacklight2.pbrt</code><br><br>
+A rendering of killeroo with green fluorescent ink under blacklight. Notice the shift in color and visibility in comparison to the previous image. Reradiation matrix can be found at ./scenes/reradiation/GreenInk.spd   
+<br><hr><br>
+File: <a href="./results/killeroo-diagonal-daylight.exr">./results/killeroo-diagonal-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/killeroo-diagonal-daylight.exr ./scenes/killeroo-diagonal-daylight.pbrt</code><br><br>
+A rendering of killeroo with under daylight with a diagonal reradiation matrix. Reradiation matrix can be found at ./scenes/reradiation/Diagonal.spd   
+<br><hr><br>
+File: <a href="./results/killeroo-diagonal-blacklight2.exr">./results/killeroo-diagonal-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/killeroo-diagonal-blacklight2.exr ./scenes/killeroo-diagonal-blacklight2.pbrt</code><br><br>
+A rendering of killeroo with under blacklight with a diagonal reradiation matrix. Notice the lack of shift in color and visibility in comparison to the previous images. Reradiation matrix can be found at ./scenes/reradiation/Diagonal.spd
+<br><hr><br>
+<center><h4>MULTIPLE OBJECT SCENES</center></h4>
+File: <a href="./results/multi1-daylight.exr">./results/multi1-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/multi1-daylight.exr ./scenes/multi1-daylight.pbrt</code><br><br>
+A rendering of a red fluorescent dragon, white fluorescent bunny, and blue fluorescent teapot in daylight. 
+  
+<br><hr><br>
+File: <a href="./results/multi1-blacklight2.exr">./results/multi1-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/multi1-blacklight2.exr ./scenes/multi1-blacklight2.pbrt</code><br><br>
+A rendering of a red fluorescent dragon, white fluorescent bunny, and blue fluorescent teapot under a blacklight. Notice the shift in color and visibility in comparison to the previous image in all fluorescent objects.    
+<br><hr><br>
+File: <a href="./results/multi2-daylight.exr">./results/multi2-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/multi2-daylight.exr ./scenes/multi2-daylight.pbrt  </code><br><br>
+A rendering of a red plastic dragon, white plastic bunny, and blue fluorescent teapot in daylight.   
+<br><hr><br>
+File: <a href="./results/multi2-blacklight2.exr">./results/multi2-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/multi2-blacklight2.exr ./scenes/multi2-blacklight2.pbrt</code><br><br>
+A rendering of a red plastic dragon, white plastic bunny, and blue fluorescent teapot under blacklight. Notice the lack of shift in color and visibility in comparison to the previous image in all non-fluorescent objects. Notice the shift in color and visibility in comparison to the previous image in all fluorescent objects.    
+<br><hr><br>
+File: <a href="./results/multi3-daylight.exr">./results/multi3-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/multi3-daylight.exr ./scenes/multi3-daylight.pbrt</code><br><br>
+A rendering of a purple plastic dragon, green fluorescent bunny, and orange matte teapot under daylight.   
+<br><hr><br>
+File: <a href="./results/multi3-blacklight2.exr">./results/multi3-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/multi3-blacklight2.exr ./scenes/multi3-blacklight2.pbrt</code><br><br>
+A rendering of a purple plastic dragon, green fluorescent bunny, and orange matte teapot under blacklight. Notice the lack of shift in color and visibility in comparison to the previous image in all non-fluorescent objects. Notice the shift in color and visibility in comparison to the previous image in all fluorescent objects. 
+<br><hr><br>
+File: <a href="./results/multi4-daylight.exr">./results/multi4-daylight.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/multi4-daylight.exr ./scenes/multi4-daylight.pbrt</code><br><br>
+A rendering of a purple plastic dragon, green matte bunny, and orange matte teapot under daylight.  
+<br><hr><br>
+File: <a href="./results/multi4-blacklight2.exr">./results/multi4-blacklight2.exr</a><br><br>
+Generated with <code>./src/bin/pbrt --outfile ./results/multi4-blacklight2.exr ./scenes/multi4-blacklight2.pbrt</code><br><br>
+A rendering of a purple plastic dragon, green matte bunny, and orange matte teapot under blacklight. Notice the lack of shift in color and visibility in comparison to the previous image in all non-fluorescent objects.   
+
+<br><br><h2>References</h2>[1] Agarwal, Rahul, and Ben Cunningham. "Final Project: Fluorescence under Black Light." Computer Graphics at Stanford University. Web. 29 July 2010. <https://graphics.stanford.edu/wikis/cs348b-10/codeb87/Final_Project>.<br>[2] Pharr, Matt, and Greg Humphreys. Physically Based Rendering: From Theory to Implementation. Amsterdam: Elsevier/Morgan Kaufmann, 2010. Print.<br>[3] Resch-Genger, Ute, and M. Ameloot. Standardization and Quality Assurance in Fluorescence Measurements I: Techniques. New York: Springer, 2008. SpringerLink. Web. 9 June 2010.<br>[4] Wilkie, A., Weidlich, A., Larboulette, C., and Purgathofer, W. 2006. A reflectance model for diffuse fluorescent surfaces. InProceedings of the 4th international Conference on Computer Graphics and interactive Techniques in Australasia and Southeast Asia (Kuala Lumpur, Malaysia, November 29 - December 02, 2006). GRAPHITE '06. ACM, New York, NY, 321-331. DOI= http://doi.acm.org/10.1145/1174429.1174484<br>[5] http://www-users.cselabs.umn.edu/classes/Spring-2012/csci5108/pbrt-scenes/spds/lights/
